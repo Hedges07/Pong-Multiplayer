@@ -4,17 +4,16 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 
-// Initialize app and server
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Game state
+// Serve static files from the root directory
+app.use(express.static('.'));  // <-- This serves your index.html correctly
+
+// Game state and WebSocket logic
 let players = {};
 let ball = { x: 400, y: 300, dx: 2, dy: 2, size: 10 };
-
-// Serve the index.html file
-app.use(express.static('public')); // If you have any public folder assets (like images)
 
 // Listen for player movement
 io.on('connection', (socket) => {
@@ -45,7 +44,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Update game state (move ball and check for collisions)
+// Game update loop
 function updateGame() {
   // Move the ball
   ball.x += ball.dx;
@@ -78,7 +77,7 @@ function updateGame() {
 // Set up the game loop (50 times per second)
 setInterval(updateGame, 20);
 
-// Start the server on a specific port
+// Start the server on the assigned port
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
