@@ -16,19 +16,17 @@ socket.on('gameState', (gameState) => {
   players = gameState.players;
   ball = gameState.ball;
 
-  // Check if we know the player controls and assign accordingly
-  if (Object.keys(players).length === 1) {
-    // Player 1 is using 'W/S' (default controls)
-    controls[socket.id] = { up: 'w', down: 's' };
-  } else if (Object.keys(players).length === 2) {
-    // Player 2 is using 'Arrow Up/Arrow Down'
-    const player2Id = Object.keys(players).find(id => id !== socket.id);
-    controls[socket.id] = { up: 'ArrowUp', down: 'ArrowDown' };
+  // Assign player controls only once
+  if (!controls[socket.id]) {
+    const playerKeys = Object.keys(players);
+    if (playerKeys[0] === socket.id) {
+      controls[socket.id] = { up: 'w', down: 's' };
+    } else if (playerKeys[1] === socket.id) {
+      controls[socket.id] = { up: 'ArrowUp', down: 'ArrowDown' };
+    }
   }
 
-  // Redraw the game
   drawGame();
-  sendPlayerMovement();
 });
 
 // Handle keydown events for paddle movement
