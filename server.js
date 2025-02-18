@@ -1,88 +1,85 @@
-const express = require('express');
-const WebSocket = require('ws');
-const http = require('http');
-const path = require('path');
+// server.js
 
-// Setup Express server
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+
+// Initialize app and server
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-
-// Serve static files from the 'public' folder
-app.use(express.static(path.join(__dirname, 'public')));
+const io = socketIo(server);
 
 // Game state
-let gameState = {
-  ball: { x: 400, y: 300, dx: 4, dy: 4, radius: 10 },
-  paddle1: { x: 50, y: 250, width: 20, height: 100, dy: 0 },
-  paddle2: { x: 730, y: 250, width: 20, height: 100, dy: 0 },
-  player1Score: 0,
-  player2Score: 0,
-};
+let players = {};
+let ball = { x: 400, y: 300, dx: 2, dy: 2, size: 10 };
 
-// WebSocket connection handling
-wss.on('connection', (ws) => {
-  console.log('New player connected');
-  
-  ws.on('message', (message) => {
-    const data = JSON.parse(message);
-    
-    // Control the paddles
-    if (data.paddle1) {
-      gameState.paddle1.dy = data.paddle1;
+// Serve the index.html file
+app.use(express.static('public')); // If you have any public folder assets (like images)
+
+// Listen for player movement
+io.on('connection', (socket) => {
+  console.log('A player connected:', socket.id);
+
+  // Add new player to the game
+  players[socket.id] = { x: 50, y: 250, width: 10, height: 100, score: 0 };
+
+  // Send current game state to the new player
+  socket.emit('gameState', { players, ball });
+
+  // Handle player movement
+  socket.on('move', (direction) => {
+    if (direction === 'up' && players[socket.id].y > 0) {
+      players[socket.id].y -= 10;
+    } else if (direction === 'down' && players[socket.id].y < 500) {
+      players[socket.id].y += 10;
     }
-    if (data.paddle2) {
-      gameState.paddle2.dy = data.paddle2;
+
+    // Broadcast updated player state
+    io.emit('gameState', { players, ball });
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('A player disconnected:', socket.id);
+    delete players[socket.id];
+  });
+});
+
+// Update game state (move ball and check for collisions)
+function updateGame() {
+  // Move the ball
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // Ball collision with top and bottom
+  if (ball.y <= 0 || ball.y >= 590) {
+    ball.dy = -ball.dy;
+  }
+
+  // Ball collision with paddles
+  Object.values(players).forEach((player) => {
+    if (ball.x <= player.x + player.width && ball.x >= player.x &&
+        ball.y >= player.y && ball.y <= player.y + player.height) {
+      ball.dx = -ball.dx;
+      player.score += 1; // Player scores when they hit the ball
     }
   });
 
-  // Periodically update the game state
-  setInterval(() => {
-    // Update ball position
-    gameState.ball.x += gameState.ball.dx;
-    gameState.ball.y += gameState.ball.dy;
+  // Ball reset if it goes out of bounds
+  if (ball.x <= 0 || ball.x >= 800) {
+    ball.x = 400;
+    ball.y = 300;
+  }
 
-    // Ball collision with top and bottom walls
-    if (gameState.ball.y <= 0 || gameState.ball.y >= 600) {
-      gameState.ball.dy = -gameState.ball.dy;
-    }
+  // Broadcast updated game state to all clients
+  io.emit('gameState', { players, ball });
+}
 
-    // Ball collision with paddles
-    if (gameState.ball.x <= gameState.paddle1.x + gameState.paddle1.width && gameState.ball.y >= gameState.paddle1.y && gameState.ball.y <= gameState.paddle1.y + gameState.paddle1.height) {
-      gameState.ball.dx = -gameState.ball.dx;
-    }
+// Set up the game loop (50 times per second)
+setInterval(updateGame, 20);
 
-    if (gameState.ball.x >= gameState.paddle2.x - gameState.paddle2.width && gameState.ball.y >= gameState.paddle2.y && gameState.ball.y <= gameState.paddle2.y + gameState.paddle2.height) {
-      gameState.ball.dx = -gameState.ball.dx;
-    }
-
-    // Ball out of bounds
-    if (gameState.ball.x <= 0) {
-      gameState.player2Score += 1;
-      gameState.ball = { x: 400, y: 300, dx: 4, dy: 4, radius: 10 }; // Reset ball
-    } else if (gameState.ball.x >= 800) {
-      gameState.player1Score += 1;
-      gameState.ball = { x: 400, y: 300, dx: -4, dy: 4, radius: 10 }; // Reset ball
-    }
-
-    // Update paddles position
-    gameState.paddle1.y += gameState.paddle1.dy;
-    gameState.paddle2.y += gameState.paddle2.dy;
-
-    // Ensure paddles stay in bounds
-    gameState.paddle1.y = Math.max(0, Math.min(500, gameState.paddle1.y));
-    gameState.paddle2.y = Math.max(0, Math.min(500, gameState.paddle2.y));
-
-    // Send updated state to clients
-    wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(gameState));
-      }
-    });
-  }, 1000 / 60); // 60 FPS game loop
-});
-
-// Start the server
-server.listen(process.env.PORT || 3000, () => {
-  console.log('Server started on http://localhost:3000');
+// Start the server on a specific port
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });

@@ -5,12 +5,67 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Multiplayer Pong</title>
   <style>
-    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: black; }
+    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #000; }
     canvas { border: 1px solid white; }
   </style>
 </head>
 <body>
-  <canvas id="pong" width="800" height="600"></canvas>
-  <script src="pong.js"></script>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let players = {};
+    let ball = {};
+
+    // Function to draw the game state
+    function drawGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw ball
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw paddles
+      Object.values(players).forEach((player) => {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      });
+
+      // Draw scores
+      ctx.font = '30px Arial';
+      ctx.fillText(`Player 1: ${Object.values(players)[0]?.score || 0}`, 50, 50);
+      ctx.fillText(`Player 2: ${Object.values(players)[1]?.score || 0}`, canvas.width - 200, 50);
+    }
+
+    // Function to handle user input
+    function handleInput(event) {
+      if (event.key === 'w') {
+        socket.emit('move', 'up');
+      } else if (event.key === 's') {
+        socket.emit('move', 'down');
+      }
+    }
+
+    // Function to initialize the game
+    function initializeGame() {
+      // Handle keyboard input
+      document.addEventListener('keydown', handleInput);
+
+      // Establish socket connection
+      socket.on('gameState', (gameState) => {
+        players = gameState.players;
+        ball = gameState.ball;
+        drawGame();
+      });
+    }
+
+    // Initialize the game when the page loads
+    initializeGame();
+  </script>
 </body>
 </html>
