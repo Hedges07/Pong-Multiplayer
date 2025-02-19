@@ -1,60 +1,110 @@
-// pong.js
+const paddleWidth = 10, paddleHeight = 100, ballSize = 10;
+const gameSpeed = 2; // Lower speed for better collision detection
+const ballSpeedMultiplier = 0.5; // Slightly faster ball
+const canvasWidth = 800, canvasHeight = 600;
 
-// Ball and game state
-let ball = { x: 400, y: 300, dx: 2, dy: 2, size: 10 };
-let players = {};
+let ball = { 
+    x: Math.floor(canvasWidth / 2), 
+    y: Math.floor(canvasHeight / 2), 
+    speedX: gameSpeed * ballSpeedMultiplier, 
+    speedY: gameSpeed * ballSpeedMultiplier 
+};
 
-// Move the ball and check collisions
-function updateBall() {
-  ball.x += ball.dx;
-  ball.y += ball.dy;
-
-  // Ball collision with top and bottom
-  if (ball.y <= 0 || ball.y >= 590) {
-    ball.dy = -ball.dy;
-  }
-
-  // Ball collision with paddles
-  Object.values(players).forEach(player => {
-    if (ball.x <= player.x + player.width && ball.x >= player.x &&
-        ball.y >= player.y && ball.y <= player.y + player.height) {
-      ball.dx = -ball.dx;
-      player.score += 1; // Player scores when they hit the ball
+// Move player paddle (now takes player object instead of socket ID)
+function movePlayer(player, direction) {
+    if (direction === 'up' && player.y > 0) {
+        player.y -= gameSpeed;  // Faster paddle movement
+    } else if (direction === 'down' && player.y < canvasHeight - paddleHeight) {
+        player.y += gameSpeed;  // Faster paddle movement
     }
-  });
-
-  // Ball reset if it goes out of bounds
-  if (ball.x <= 0 || ball.x >= 800) {
-    ball.x = 400;
-    ball.y = 300;
-  }
 }
 
-// Update player paddle position based on direction
-function movePlayer(socketId, direction) {
-  const player = players[socketId];
-  if (!player) return;
+// Ball and collision logic
+function updateGame(players) {
+    ball.x += ball.speedX;
+    ball.y += ball.speedY;
 
-  if (direction === 'up' && player.y > 0) {
-    player.y -= 10;
-  } else if (direction === 'down' && player.y < 500) {
-    player.y += 10;
-  }
+    // Debugging: Log Ball Position
+    console.log(`Ball Position: x=${ball.x}, y=${ball.y}, speedX=${ball.speedX}, speedY=${ball.speedY}`);
+
+    // Ball collision with top and bottom walls
+    if (ball.y <= 0 || ball.y >= canvasHeight - ballSize) {
+        ball.speedY *= -1; // Reverse vertical direction
+    }
+
+    // Ball collision with paddles (check wider range)
+    Object.values(players).forEach(player => {
+        // Player 1 (left) paddle collision (check wider range for overlap)
+        if (player.x === 0 && 
+            ball.x <= player.x + paddleWidth + ballSize &&  // Ball is within X range (buffer added)
+            ball.x + ballSize >= player.x &&                 // Ball is within X range
+            ball.y + ballSize >= player.y &&                 // Ball's bottom is within paddle's vertical range
+            ball.y <= player.y + paddleHeight) {             // Ball's top is within paddle's vertical range
+            
+            console.log("Ball hit Player 1's paddle!");
+
+            // Reverse the horizontal direction of the ball (bounce)
+            if (ball.speedX < 0) {
+                ball.speedX *= -1; // Reverse horizontal direction
+                // Add randomness to the bounce angle
+                ball.speedY += (Math.random() * 2 - 1) * 2;
+            }
+        }
+
+        // Player 2 (right) paddle collision (check wider range for overlap)
+        if (player.x === canvasWidth - paddleWidth &&
+            ball.x + ballSize >= player.x - ballSize &&     // Ball is within X range (buffer added)
+            ball.x <= player.x + paddleWidth &&              // Ball is within X range
+            ball.y + ballSize >= player.y &&                 // Ball's bottom is within paddle's vertical range
+            ball.y <= player.y + paddleHeight) {             // Ball's top is within paddle's vertical range
+
+            console.log("Ball hit Player 2's paddle!");
+
+            // Reverse the horizontal direction of the ball (bounce)
+            if (ball.speedX > 0) {
+                ball.speedX *= -1; // Reverse horizontal direction
+                // Add randomness to the bounce angle
+                ball.speedY += (Math.random() * 2 - 1) * 2;
+            }
+        }
+    });
+
+    // Scoring logic (ball out of bounds)
+    const playerList = Object.values(players);
+    if (ball.x <= 0 && playerList.length > 1) {
+        playerList[1].score++; // Player 2 scores
+        resetBall(); // Reset the ball position after scoring
+    } else if (ball.x >= canvasWidth - ballSize && playerList.length > 0) {
+        playerList[0].score++; // Player 1 scores
+        resetBall(); // Reset the ball position after scoring
+    }
+
+    // Prevent ball from moving if only one player
+    if (playerList.length < 2) {
+        resetBall(); // Reset ball when there’s only one player
+    }
 }
 
-// Return the current game state
-function getGameState() {
-  return { players, ball };
+// Reset the ball position after scoring
+function resetBall() {
+    ball.x = Math.floor(canvasWidth / 2);
+    ball.y = Math.floor(canvasHeight / 2);
+    // Randomize horizontal direction (left or right)
+    ball.speedX = gameSpeed * ballSpeedMultiplier * (Math.random() > 0.5 ? 1 : -1);
+    // Randomize vertical direction (up or down)
+    ball.speedY = gameSpeed * ballSpeedMultiplier * (Math.random() > 0.5 ? 1 : -1);
+    // Optional: Add slight randomness to the vertical speed to avoid straight line shots
+    ball.speedY += (Math.random() * 2 - 1) * 2;
 }
 
-// Add new player to the game
-function addPlayer(socketId) {
-  players[socketId] = { x: 50, y: 250, width: 10, height: 100, score: 0 };
+// Get the ball state for the server (so we can send it to the client)
+function getBallState() {
+    return {
+        x: ball.x,
+        y: ball.y,
+        speedX: ball.speedX,
+        speedY: ball.speedY
+    };
 }
 
-// Remove player from the game
-function removePlayer(socketId) {
-  delete players[socketId];
-}
-
-module.exports = { updateBall, movePlayer, getGameState, addPlayer, removePlayer };
+module.exports = { movePlayer, updateGame, getBallState };

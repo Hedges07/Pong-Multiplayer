@@ -1,77 +1,55 @@
-// client.js
-
 const socket = io(); // Connect to the server
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Canvas size
+const canvasWidth = 800;
+const canvasHeight = 600;
+canvas.width = canvasWidth;
+canvas.height = canvasHeight;
+
+const paddleWidth = 10, paddleHeight = 100, ballSize = 10;
 let players = {};
 let ball = {};
 
-let moveDirection = null; // 'up' or 'down'
-let controls = {}; // Track player's key bindings
-
-// Listen for the game state from the server
+// Listen for game state updates from the server
 socket.on('gameState', (gameState) => {
-  players = gameState.players;
-  ball = gameState.ball;
-
-  // Assign player controls only once
-  if (!controls[socket.id]) {
-    const playerKeys = Object.keys(players);
-    if (playerKeys[0] === socket.id) {
-      controls[socket.id] = { up: 'w', down: 's' };
-    } else if (playerKeys[1] === socket.id) {
-      controls[socket.id] = { up: 'ArrowUp', down: 'ArrowDown' };
-    }
-  }
-
-  drawGame();
+    players = gameState.players;
+    ball = gameState.ball;
+    drawGame();
 });
 
-// Handle keydown events for paddle movement
+// Handle player movement (send to server)
 document.addEventListener('keydown', (e) => {
-  if (controls[socket.id]) {
-    if (e.key === controls[socket.id].up) {
-      moveDirection = 'up';
-    } else if (e.key === controls[socket.id].down) {
-      moveDirection = 'down';
+    if (e.key === 'w' || e.key === 'ArrowUp') {
+        socket.emit('move', 'up');
+    } else if (e.key === 's' || e.key === 'ArrowDown') {
+        socket.emit('move', 'down');
     }
-  }
 });
-
-document.addEventListener('keyup', (e) => {
-  if (controls[socket.id] && (e.key === controls[socket.id].up || e.key === controls[socket.id].down)) {
-    moveDirection = null; // Stop moving when key is released
-  }
-});
-
-// Send player movement to the server
-function sendPlayerMovement() {
-  if (moveDirection) {
-    socket.emit('move', moveDirection);
-  }
-}
 
 // Draw the game state on the canvas
 function drawGame() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'white';
 
-  // Draw the paddles
-  Object.values(players).forEach(player => {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-  });
+    // Draw paddles
+    Object.values(players).forEach(player => {
+        ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
+    });
 
-  // Draw the ball
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
-  ctx.fillStyle = '#fff';
-  ctx.fill();
-  ctx.closePath();
+    // Draw ball
+    ctx.fillRect(ball.x, ball.y, ballSize, ballSize);
 
-  // Draw the score
-  ctx.font = '30px Arial';
-  ctx.fillText(`Player 1: ${players[Object.keys(players)[0]] ? players[Object.keys(players)[0]].score : 0}`, 50, 50);
-  ctx.fillText(`Player 2: ${players[Object.keys(players)[1]] ? players[Object.keys(players)[1]].score : 0}`, canvas.width - 200, 50);
+    // Draw scores
+    const playerKeys = Object.keys(players);
+    ctx.font = '20px Arial';
+    if (playerKeys.length > 0) {
+        ctx.fillText(`Player 1: ${players[playerKeys[0]] ? players[playerKeys[0]].score : 0}`, 50, 50);
+    }
+    if (playerKeys.length > 1) {
+        ctx.fillText(`Player 2: ${players[playerKeys[1]] ? players[playerKeys[1]].score : 0}`, canvas.width - 150, 50);
+    }
 }

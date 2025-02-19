@@ -1,52 +1,47 @@
-// server.js
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const pong = require('./pong'); // Import the game logic from pong.js
-
-// Initialize app and server
+const pong = require('./pong');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Serve static files from the root directory
 app.use(express.static('.'));
 
-// Listen for player connection
+const players = {};
 io.on('connection', (socket) => {
-  console.log('A player connected:', socket.id);
+    console.log(`Player connected: ${socket.id}`);
 
-  // Add the new player to the game
-  pong.addPlayer(socket.id);
+    const playerCount = Object.keys(players).length;
+    if (playerCount === 0) {
+        players[socket.id] = { x: 10, y: 250, score: 0 }; // Left paddle
+    } else if (playerCount === 1) {
+        players[socket.id] = { x: 780, y: 250, score: 0 }; // Right paddle
+    } else {
+        socket.disconnect();
+        return;
+    }
 
-  // Send the current game state to the new player
-  socket.emit('gameState', pong.getGameState());
+    socket.emit('gameState', { players, ball: pong.getBallState() });
 
-  // Listen for player movement commands
-  socket.on('move', (direction) => {
-    pong.movePlayer(socket.id, direction);  // Move the player
-    io.emit('gameState', pong.getGameState());  // Broadcast updated game state
-  });
+    socket.on('move', (direction) => {
+        if (players[socket.id]) {
+            pong.movePlayer(players[socket.id], direction);
+        }
+    });
 
-  // Handle player disconnection
-  socket.on('disconnect', () => {
-    console.log('A player disconnected:', socket.id);
-    pong.removePlayer(socket.id);  // Remove the player from the game
-  });
+    socket.on('disconnect', () => {
+        console.log(`Player disconnected: ${socket.id}`);
+        delete players[socket.id];
+    });
 });
 
-// Game loop to update ball position and check collisions
-function gameLoop() {
-  pong.updateBall();  // Update the ball's position
-  io.emit('gameState', pong.getGameState());  // Broadcast updated game state
-}
+setInterval(() => {
+    pong.updateGame(players);
+    io.emit('gameState', { players, ball: pong.getBallState() });
+}, 20);
 
-// Set up the game loop (50 times per second)
-setInterval(gameLoop, 20);
-
-// Start the server on the assigned port
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
