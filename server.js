@@ -54,6 +54,11 @@ setInterval(() => {
     io.emit('gameState', { players, ball: pong.getBallState() });
 }, 20);
 
+app.use((req, res, next) => {
+    res.setHeader("X-Frame-Options", "ALLOWALL"); // Allows embedding
+    next();
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
