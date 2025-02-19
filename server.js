@@ -8,16 +8,21 @@ const io = socketIo(server);
 
 app.use(express.static('.'));
 
-const players = {};
+const players = {}; // Store connected players
+const playerSlots = { left: null, right: null }; // Track which slot is taken
+
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
-    const playerCount = Object.keys(players).length;
-    if (playerCount === 0) {
+    // Assign the player to an available slot
+    if (!playerSlots.left) {
         players[socket.id] = { x: 10, y: 250, score: 0 }; // Left paddle
-    } else if (playerCount === 1) {
+        playerSlots.left = socket.id;
+    } else if (!playerSlots.right) {
         players[socket.id] = { x: 780, y: 250, score: 0 }; // Right paddle
+        playerSlots.right = socket.id;
     } else {
+        console.log(`Server full. Kicking ${socket.id}`);
         socket.disconnect();
         return;
     }
@@ -32,10 +37,18 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
+
+        if (playerSlots.left === socket.id) {
+            playerSlots.left = null; // Free the left slot
+        } else if (playerSlots.right === socket.id) {
+            playerSlots.right = null; // Free the right slot
+        }
+
         delete players[socket.id];
     });
 });
 
+// Game loop - update game state & send to clients
 setInterval(() => {
     pong.updateGame(players);
     io.emit('gameState', { players, ball: pong.getBallState() });

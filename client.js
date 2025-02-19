@@ -31,25 +31,41 @@ document.addEventListener('keydown', (e) => {
 
 // Draw the game state on the canvas
 function drawGame() {
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'white';
+  // Clear the canvas
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, canvas.width, canvas.height); // Black background
 
-    // Draw paddles
-    Object.values(players).forEach(player => {
-        ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
-    });
+  ctx.fillStyle = 'white';
 
-    // Draw ball
-    ctx.fillRect(ball.x, ball.y, ballSize, ballSize);
+  // Draw middle dashed line
+  ctx.setLineDash([10, 10]); // Dashed effect
+  ctx.beginPath();
+  ctx.moveTo(canvas.width / 2, 0);
+  ctx.lineTo(canvas.width / 2, canvas.height);
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.setLineDash([]); // Reset line dash
 
-    // Draw scores
-    const playerKeys = Object.keys(players);
-    ctx.font = '20px Arial';
-    if (playerKeys.length > 0) {
-        ctx.fillText(`Player 1: ${players[playerKeys[0]] ? players[playerKeys[0]].score : 0}`, 50, 50);
-    }
-    if (playerKeys.length > 1) {
-        ctx.fillText(`Player 2: ${players[playerKeys[1]] ? players[playerKeys[1]].score : 0}`, canvas.width - 150, 50);
-    }
+  // Draw paddles
+  Object.values(players).forEach(player => {
+      ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
+  });
+
+  // Draw ball
+  ctx.beginPath();
+  ctx.arc(ball.x + ballSize / 2, ball.y + ballSize / 2, ballSize / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw scores
+  ctx.font = 'bold 32px Arial';
+  ctx.textAlign = 'center';
+
+  const playerKeys = Object.keys(players);
+  if (playerKeys.length > 0) {
+      ctx.fillText(`${players[playerKeys[0]] ? players[playerKeys[0]].score : 0}`, canvas.width / 4, 50);
+  }
+  if (playerKeys.length > 1) {
+      ctx.fillText(`${players[playerKeys[1]] ? players[playerKeys[1]].score : 0}`, (canvas.width / 4) * 3, 50);
+  }
 }
